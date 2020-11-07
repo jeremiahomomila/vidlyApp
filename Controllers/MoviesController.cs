@@ -1,60 +1,101 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Entity;
 using System.Linq;
 using System.Web;
 using System.Web.Mvc;
 using vidly.Models;
+using vidly.Persistence;
 using vidly.ViewModels;
 
 namespace vidly.Controllers
 {
     public class MoviesController : Controller
     {
-        // GET: Movies/Random
-        public ActionResult Random()
+        private ApplicationDbContext dbContext;
+        public MoviesController()
         {
-            var  ActionMovies = new List<Movie>
-            {
-                new Movie {Name = "Avengers"},
-                new Movie {Name = "Spider Man "},
-                new Movie {Name = "Fast And furious "},
-                new Movie {Name = "Forbidden Kingdom"}
-            };
+            dbContext = new ApplicationDbContext();
+        }
 
-            var CartoonMovies = new List<Movie>
-            {
-                new Movie {Name = "The Lion King"},
-                new Movie {Name = "Shrek"},
-                new Movie {Name = "Tom & Jerry"},
-                new Movie {Name = "The Boss Baby"},
-            };
+        protected override void Dispose(bool disposing)
+        {
+            dbContext.Dispose();
+        }
+        // GET: Movies/Random
+        public ViewResult Index()
+        {
+            var movie = dbContext.Movies.Include(m => m.Genre).ToList();
+                           
+            return View(movie);
+        }
 
-            var AmericanSeries = new List<Movie>
+        public ActionResult MovieForm()
+        {
+            var Genres = dbContext.Genres.ToList();
+            var viewModel = new MovieFormViewModel()
             {
-                new Movie {Name = "PrisonBreak"},
-                new Movie {Name = "Money Heist"}
-            };
+                movie = new Movie() { DateAdded = DateTime.Now},
+                Genres = Genres,
 
-        
-
-            var viewModel = new RandomMovieViewModel
-            {
-                ActionMovies = ActionMovies,
-                CartoonMovies = CartoonMovies,
-                AmericanSeries = AmericanSeries
-                
-                
             };
             return View(viewModel);
         }
 
-  
-        [Route("movies/released/{year}/{month:regex(\\d{4}):range(1, 12)}")]
-        public ActionResult ByReleaseDate(int year, int month)
+        public ActionResult Edit(int id)
         {
-            return Content(year + "/" + month); 
+            var movie = dbContext.Movies.SingleOrDefault(c => c.Id == id);
+                if (movie == null)
+                return HttpNotFound();
+            var viewModel = new MovieFormViewModel
+            {
+                movie = movie,
+                Genres = dbContext.Genres.ToList()
+            };
+            return View("MovieForm", viewModel);
+
         }
 
+        [HttpPost]
+        public ActionResult Save(Movie movie)
+        {
+            if (!ModelState.IsValid)
+            {
+                var viewModel = new MovieFormViewModel
+                {
+                    movie = movie,
+                    Genres = dbContext.Genres.ToList()
+                };
+               return View("MovieForm", viewModel);
+            }
+              
+            if (movie.Id == 0)
+                dbContext.Movies.Add(movie);
+            else
+            {
+                var MovieInDb = dbContext.Movies.Single(c => c.Id == movie.Id);
+                MovieInDb.Name = movie.Name;
+                MovieInDb.GenreId = movie.GenreId;
+                MovieInDb.DateAdded = movie.DateAdded;
+                MovieInDb.ReleaseDate = movie.ReleaseDate;
+                MovieInDb.NumberInStock = movie.NumberInStock;
+
+            }
+            dbContext.SaveChanges();
+            return RedirectToAction("Index", "Movies");
+
+        }
+
+      
+        public ActionResult Details(int id) 
+        {
+            var movie = dbContext.Movies.Include(m => m.Genre).SingleOrDefault(m => m.Id == id);
+            if (movie == null)
+                return HttpNotFound();
+            return View(movie);
+        }
+
+  
 
                     
     }
